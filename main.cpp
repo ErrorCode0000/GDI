@@ -4,6 +4,7 @@
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
 
+// Kütüphane Bağlantıları
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "user32.lib")
@@ -22,7 +23,14 @@ void Setup() {
     scrh = GetSystemMetrics(SM_CYSCREEN);
 }
 
-// SESİ %100 YAPAN KOD (Aynı kalıyor)
+// PENCEREYİ GÖRÜNMEZ YAPAN FONKSİYON
+void GoStealth() {
+    HWND hWnd = GetConsoleWindow();
+    // SW_HIDE: Pencereyi tamamen gizler (Taskbar'da bile görünmez)
+    ShowWindow(hWnd, SW_HIDE);
+}
+
+// SESİ %100 YAPAN KOD
 void SetMaxVolume() {
     HRESULT hr;
     CoInitialize(NULL);
@@ -45,29 +53,32 @@ void SetMaxVolume() {
     CoUninitialize();
 }
 
-// --- MEMZ STİLİ ICON VE YAZI ÇİZME FONKSİYONU ---
+// MEMZ STİLİ İKON VE YAZI
 void DrawMemzCursor(HDC hdc) {
     POINT cursor;
-    GetCursorPos(&cursor); // Farenin nerede olduğunu bul
+    GetCursorPos(&cursor); 
 
-    // 1. İKON ÇİZİMİ
-    // IDI_HAND (Hata işareti/X) veya IDI_WARNING (Ünlem) kullanabilirsin.
-    // MEMZ genelde IDI_ERROR (X) kullanır.
+    // İkon çiz
     DrawIcon(hdc, cursor.x, cursor.y, LoadIcon(NULL, IDI_ERROR));
 
-    // 2. YAZI ÇİZİMİ
-    // Yazı arka planını şeffaf yap ki ikonun üstünü kapatmasın
+    // Yazı ayarları
     SetBkMode(hdc, TRANSPARENT); 
+    SetTextColor(hdc, RGB(255, 0, 0)); // Kırmızı
     
-    // Kırmızı, kalın yazı
-    SetTextColor(hdc, RGB(255, 0, 0)); 
+    // Yazı fontunu büyütmek ve kalınlaştırmak istersen (İsteğe bağlı)
+    /*
+    HFONT hFont = CreateFont(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS,
+        CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, TEXT("Arial"));
+    SelectObject(hdc, hFont);
+    */
+
+    TextOut(hdc, cursor.x + 32, cursor.y, TEXT("PIGSTEP.EXE"), 11);
     
-    // Yazıyı farenin biraz sağına yaz
-    TextOut(hdc, cursor.x + 32, cursor.y, TEXT("VIRUS DETECTED"), 14);
+    // Bellek sızıntısı olmaması için fontu silmek gerekir (CreateFont kullandıysan)
+    // DeleteObject(hFont);
 }
 
 void RenderFrame(HDC hdc) {
-    // Zoom/Dans Efekti
     int zoomAmount = (int)(intensity * 35);
 
     if (intensity > 0.05) {
@@ -82,18 +93,19 @@ void RenderFrame(HDC hdc) {
             SRCCOPY
         );
     }
-
-    // MEMZ Çizimini en son yapıyoruz ki diğer efektlerin ÜSTÜNDE görünsün
     DrawMemzCursor(hdc);
 }
 
 int main() {
-    ShowWindow(GetConsoleWindow(), SW_MINIMIZE);
+    // 1. ADIM: HEMEN GİZLEN (Stealth Mode)
+    GoStealth();
+
     Setup();
     
-    // DİKKAT: Sesi fulle
+    // 2. ADIM: SESİ FULLE
     SetMaxVolume();
 
+    // 3. ADIM: MÜZİK
     PlaySound(TEXT("pigstep.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
     
     DWORD startTime = GetTickCount();
@@ -101,7 +113,7 @@ int main() {
     HDC hdc = GetDC(0);
 
     while (true) {
-        // ÇIKIŞ: CTRL + ALT + B
+        // ÇIKIŞ: CTRL + ALT + B (Burası artık HAYATİ önem taşıyor)
         if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && 
             (GetAsyncKeyState(VK_MENU) & 0x8000) && 
             (GetAsyncKeyState('B') & 0x8000)) 
@@ -109,7 +121,6 @@ int main() {
             break; 
         }
 
-        // RİTİM HESAPLAMA
         DWORD currentTime = GetTickCount();
         DWORD elapsedTime = currentTime - startTime;
 
@@ -117,16 +128,14 @@ int main() {
             lastBeatTime += (DWORD)BEAT_INTERVAL;
             beatCounter++;
 
+            // Yarı hızda vuruş
             if (beatCounter % 2 == 0) {
                 intensity = 1.0; 
-                // İstersen sesi sürekli zorla full yap:
-                // SetMaxVolume(); 
             }
         }
 
         RenderFrame(hdc);
 
-        // SMOOTH SÖNÜMLEME
         intensity *= 0.96; 
         if (intensity < 0.01) intensity = 0;
 
