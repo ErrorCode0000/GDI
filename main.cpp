@@ -1,7 +1,8 @@
 /*
-    Project: GDI Chaos Visualizer
+    Project: CBA Visualizer (Fixed)
     Language: C++
-    Description: Advanced GDI manipulation with WASAPI audio sync.
+    Author: CBA
+    Description: GDI Visualizer with Signature.
     Exit: [CTRL + ALT + B]
 */
 
@@ -11,7 +12,7 @@
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
 
-// Gerekli Kütüphaneler
+// Kütüphaneler
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "user32.lib")
@@ -20,25 +21,26 @@
 // --- AYARLAR ---
 const int BPM = 75; 
 const double BEAT_INTERVAL = 60000.0 / BPM; 
-const double PI = 3.14159265359;
 
-int scrw, scrh;
+// Global Değişkenler
+int vX, vY, vW, vH; 
 int centerX, centerY;
 double intensity = 0.0;
 int beatCounter = 0;
 
 void Setup() {
-    scrw = GetSystemMetrics(SM_CXSCREEN);
-    scrh = GetSystemMetrics(SM_CYSCREEN);
-    centerX = scrw / 2;
-    centerY = scrh / 2;
+    vX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    vY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    vW = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    vH = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    centerX = vX + (vW / 2);
+    centerY = vY + (vH / 2);
 }
 
 void GoStealth() {
     ShowWindow(GetConsoleWindow(), SW_HIDE);
 }
 
-// ACİL ÇIKIŞ (CTRL + ALT + B)
 bool CheckExit() {
     if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && 
         (GetAsyncKeyState(VK_MENU) & 0x8000) && 
@@ -49,7 +51,6 @@ bool CheckExit() {
     return false;
 }
 
-// SES KONTROLÜ (WASAPI)
 void SetMaxVolume() {
     HRESULT hr;
     CoInitialize(NULL);
@@ -72,111 +73,113 @@ void SetMaxVolume() {
     CoUninitialize();
 }
 
-// --- YENİ EFEKT: PİKSEL AYRIŞMASI (DISINTEGRATION) ---
 void DisintegrateEffect(HDC hdc, int durationMs) {
     DWORD start = GetTickCount();
-    
-    // Belirtilen süre boyunca çalış
     while (GetTickCount() - start < durationMs) {
         if (CheckExit()) exit(0);
-
-        // Rastgele bir kaynak nokta seç
-        int x = rand() % scrw;
-        int y = rand() % scrh;
-
-        // Rastgele bir hedef nokta seç
-        int destX = rand() % scrw;
-        int destY = rand() % scrh;
-
-        // Çok küçük bir parçayı (2x2 piksel) alıp rastgele bir yere yapıştır
-        // Bu "piksel piksel taşıma" görüntüsü verir
+        int x = vX + (rand() % vW);
+        int y = vY + (rand() % vH);
+        int destX = vX + (rand() % vW);
+        int destY = vY + (rand() % vH);
         BitBlt(hdc, destX, destY, 4, 4, hdc, x, y, SRCCOPY);
-        
-        // İşlemciyi yakmamak için minik bekleme (her döngüde değil, toplu hız)
-        // Buraya Sleep koymuyoruz ki çok hızlı olsun, kaotik görünsün.
     }
 }
 
-// --- GEOMETRİK ANİMASYON ---
-void PlayGeometrySequence(HDC hdc) {
-    // 1. DAİRE
-    int radius = 300;
-    for (double angle = 0; angle < 2 * PI; angle += 0.1) {
-        if (CheckExit()) exit(0);
-        int x = centerX + (int)(radius * cos(angle));
-        int y = centerY + (int)(radius * sin(angle));
-        DrawIcon(hdc, x - 16, y - 16, LoadIcon(NULL, IDI_ERROR));
-        Sleep(5); 
-    }
+// --- DÜZELTME: LPCSTR KULLANILDI (ANSI UYUMU) ---
+void DrawPattern(HDC hdc, int startX, int startY, int pattern[5][5], LPCSTR iconID) {
+    int spacing = 60; 
 
-    // 2. KARE
-    int size = 350; 
-    for (int x = centerX - size; x <= centerX + size; x += 40) {
-        if (CheckExit()) exit(0);
-        DrawIcon(hdc, x, centerY - size, LoadIcon(NULL, IDI_WARNING));
-        DrawIcon(hdc, x, centerY + size, LoadIcon(NULL, IDI_WARNING));
-        Sleep(5);
-    }
-    for (int y = centerY - size; y <= centerY + size; y += 40) {
-        if (CheckExit()) exit(0);
-        DrawIcon(hdc, centerX - size, y, LoadIcon(NULL, IDI_WARNING)); 
-        DrawIcon(hdc, centerX + size, y, LoadIcon(NULL, IDI_WARNING)); 
-        Sleep(5);
-    }
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 5; col++) {
+            if (CheckExit()) exit(0);
 
-    // 3. MERKEZ BİLGİ
-    for (int x = centerX - 60; x <= centerX + 60; x+=60) {
-        for (int y = centerY - 60; y <= centerY + 60; y+=60) {
-             DrawIcon(hdc, x, y, LoadIcon(NULL, IDI_INFORMATION));
-             Sleep(30);
+            if (pattern[row][col] == 1) {
+                int drawX = startX + (col * spacing);
+                int drawY = startY + (row * spacing);
+                
+                // LoadIconA kullanarak tür uyuşmazlığını çözdük
+                DrawIcon(hdc, drawX, drawY, LoadIconA(NULL, iconID));
+                Sleep(30); 
+            }
         }
     }
 }
 
-// ANA RENDER (PIGSTEP DROP)
+// --- CBA İMZASI (Matris Haritaları) ---
+void DrawSignature(HDC hdc) {
+    
+    // C Harfi
+    int patternC[5][5] = {
+        {1, 1, 1, 1, 1},
+        {1, 0, 0, 0, 0},
+        {1, 0, 0, 0, 0},
+        {1, 0, 0, 0, 0},
+        {1, 1, 1, 1, 1}
+    };
+
+    // B Harfi
+    int patternB[5][5] = {
+        {1, 1, 1, 1, 0},
+        {1, 0, 0, 0, 1},
+        {1, 1, 1, 1, 0},
+        {1, 0, 0, 0, 1},
+        {1, 1, 1, 1, 0}
+    };
+
+    // A Harfi
+    int patternA[5][5] = {
+        {0, 1, 1, 1, 0},
+        {1, 0, 0, 0, 1},
+        {1, 1, 1, 1, 1},
+        {1, 0, 0, 0, 1},
+        {1, 0, 0, 0, 1}
+    };
+
+    int startY = centerY - 150; 
+    
+    // C - Error İkonu
+    // Tür dönüşümü hatasını önlemek için (LPCSTR) cast ekliyoruz
+    DrawPattern(hdc, centerX - 500, startY, patternC, (LPCSTR)IDI_ERROR);
+    Sleep(200);
+
+    // B - Warning İkonu
+    DrawPattern(hdc, centerX - 150, startY, patternB, (LPCSTR)IDI_WARNING);
+    Sleep(200);
+
+    // A - Info İkonu
+    DrawPattern(hdc, centerX + 200, startY, patternA, (LPCSTR)IDI_INFORMATION);
+    Sleep(500);
+}
+
 void RenderRhythmFrame(HDC hdc) {
     int zoomAmount = (int)(intensity * 35);
-
     if (intensity > 0.05) {
-        StretchBlt(
-            hdc, 
-            zoomAmount, zoomAmount,              
-            scrw - (2 * zoomAmount),             
-            scrh - (2 * zoomAmount),             
-            hdc, 
-            0, 0,                                
-            scrw, scrh, 
-            SRCCOPY
-        );
+        StretchBlt(hdc, vX + zoomAmount, vY + zoomAmount, vW - (2 * zoomAmount), vH - (2 * zoomAmount), hdc, vX, vY, vW, vH, SRCCOPY);
     }
     
-    // Mouse Takip İzi
     POINT cursor;
     GetCursorPos(&cursor); 
-    DrawIcon(hdc, cursor.x, cursor.y, LoadIcon(NULL, IDI_ERROR));
+    DrawIcon(hdc, cursor.x, cursor.y, LoadIconA(NULL, (LPCSTR)IDI_ERROR));
 }
 
 int main() {
-    // 1. ADIM: GİZLEN
     GoStealth();
     Setup();
-    HDC hdc = GetDC(0);
+    HDC hdc = GetDC(NULL); 
 
-    // 2. ADIM: PİKSEL AYRIŞMASI (5 Saniye)
-    // Ekran "erimeye" başlar
+    // 1. ADIM: ERİME EFEKTİ
     DisintegrateEffect(hdc, 5000);
 
-    // 3. ADIM: GEOMETRİK ŞOV
-    PlayGeometrySequence(hdc);
+    // 2. ADIM: CBA İMZASI
+    DrawSignature(hdc);
 
-    // 4. ADIM: DROP & SES
+    // 3. ADIM: MÜZİK VE DANS
     SetMaxVolume(); 
     PlaySound(TEXT("pigstep.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
     
     DWORD startTime = GetTickCount();
     DWORD lastBeatTime = 0;
 
-    // SONSUZ DÖNGÜ
     while (true) {
         if (CheckExit()) break;
 
@@ -186,22 +189,17 @@ int main() {
         if (elapsedTime - lastBeatTime >= BEAT_INTERVAL) {
             lastBeatTime += (DWORD)BEAT_INTERVAL;
             beatCounter++;
-
-            // Heavy Beat (Her 2 vuruşta bir)
-            if (beatCounter % 2 == 0) {
-                intensity = 1.0; 
-            }
+            if (beatCounter % 2 == 0) intensity = 1.0; 
         }
 
         RenderRhythmFrame(hdc);
 
         intensity *= 0.96; 
         if (intensity < 0.01) intensity = 0;
-
         Sleep(30); 
     }
 
-    ReleaseDC(0, hdc);
+    ReleaseDC(NULL, hdc);
     PlaySound(NULL, 0, 0);
     return 0;
 }
